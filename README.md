@@ -22,8 +22,9 @@
 6. [Running Applications on GPU](#running-applications-on-gpu)
 7. [Persistence Mode](#persistence-mode)
 8. [Python & CUDA Setup](#python--cuda-setup)
-9. [Troubleshooting](#troubleshooting)
-10. [Cheat Sheet](#cheat-sheet)
+9. [Fix Black Login Screen (SDDM + NVIDIA)](#fix-black-login-screen-sddm--nvidia)
+10. [Troubleshooting](#troubleshooting)
+11. [Cheat Sheet](#cheat-sheet)
 
 ---
 
@@ -353,7 +354,87 @@ gpu-run pycharm
 
 ---
 
+## Fix Black Login Screen (SDDM + NVIDIA)
+
+After installing NVIDIA drivers on an Optimus laptop with SDDM + KDE + Wayland, the login screen may appear **completely black** on boot. You can still type your password and login — but there is no visual display.
+
+**Why this happens:** SDDM starts before the NVIDIA kernel module is fully initialized. The display manager can't render the login screen because NVIDIA DRM (Direct Rendering Manager) modeset is not enabled at boot time.
+
+**Why the lock screen works fine:** The lock screen runs inside your already-running Wayland session where NVIDIA is already loaded — so it renders correctly.
+
+### Step 1 — Enable NVIDIA DRM modeset
+
+```bash
+sudo tee /etc/modprobe.d/nvidia-drm.conf << 'EOF'
+options nvidia-drm modeset=1 fbdev=1
+EOF
+```
+
+### Step 2 — Add kernel parameter to GRUB
+
+```bash
+sudo nano /etc/default/grub
+```
+
+Find:
+```
+GRUB_CMDLINE_LINUX_DEFAULT="acpi_backlight=native"
+```
+
+Change to:
+```
+GRUB_CMDLINE_LINUX_DEFAULT="acpi_backlight=native nvidia-drm.modeset=1"
+```
+
+Save → `Ctrl+O` → Enter → `Ctrl+X`
+
+### Step 3 — Update GRUB and initramfs
+
+```bash
+sudo update-grub
+sudo update-initramfs -u
+```
+
+### Step 4 — Fix SDDM Wayland config
+
+```bash
+sudo mkdir -p /etc/sddm.conf.d
+sudo tee /etc/sddm.conf.d/nvidia.conf << 'EOF'
+[General]
+DisplayServer=wayland
+
+[Wayland]
+EnableHiDPI=true
+CompositorCommand=kwin_wayland --drm --no-lockscreen
+EOF
+```
+
+### Step 5 — Reboot
+
+```bash
+sudo reboot
+```
+
+### Step 6 — Verify after reboot
+
+```bash
+cat /sys/module/nvidia_drm/parameters/modeset
+# Should output: Y
+```
+
+---
+
 ## Troubleshooting
+
+### Black login screen on boot (SDDM)
+
+NVIDIA DRM modeset is not enabled at boot. Follow the [Fix Black Login Screen](#fix-black-login-screen-sddm--nvidia) section.
+
+Quick check:
+```bash
+cat /sys/module/nvidia_drm/parameters/modeset
+# Should output Y — if N, the fix was not applied correctly
+```
 
 ### `switcherooctl list` returns empty
 
@@ -403,6 +484,7 @@ nvidia-smi | grep Xorg
 
 | Task | Command |
 |------|---------|
+| Check DRM modeset | `cat /sys/module/nvidia_drm/parameters/modeset` |
 | Check GPU status | `nvidia-smi` |
 | Watch GPU live | `watch -n 1 nvidia-smi` |
 | List both GPUs | `switcherooctl list` |
