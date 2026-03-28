@@ -1,0 +1,12 @@
+[Unit]
+Description=NVIDIA Persistence Mode
+Documentation=https://docs.nvidia.com/deploy/driver-persistence/index.html
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/nvidia-smi -pm 1
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

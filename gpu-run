@@ -1,0 +1,112 @@
+#!/bin/bash
+# =============================================================================
+# gpu-run — Launch any application on NVIDIA GPU (PRIME Offloading)
+# =============================================================================
+# Usage: gpu-run <appname> [args...]
+#
+# Examples:
+#   gpu-run code
+#   gpu-run pycharm
+#   gpu-run jetbrains-toolbox
+#   gpu-run kdenlive
+#   gpu-run heroic
+#   gpu-run gimp
+#   gpu-run vesktop
+#   gpu-run zen
+# =============================================================================
+# Install: sudo cp gpu-run /usr/local/bin/gpu-run && sudo chmod +x /usr/local/bin/gpu-run
+# =============================================================================
+
+APP="$1"
+shift
+
+case "$APP" in
+    # ------------------------------------------------------------------
+    # Electron apps — need Wayland/X11 compatibility flag on Wayland sessions
+    # ------------------------------------------------------------------
+    code|antigravity|brave-browser|brave|chromium|electron|slack|discord|obsidian)
+        exec switcherooctl launch --gpu 1 "$APP" --enable-features=UseOzonePlatform --ozone-platform=x11 "$@"
+        ;;
+
+    # ------------------------------------------------------------------
+    # JetBrains Toolbox — installed in ~/.local/share/JetBrains/
+    # Auto-detects the version directory
+    # ------------------------------------------------------------------
+    jetbrains-toolbox)
+        TOOLBOX_BIN=$(find /home/$USER/.local/share/JetBrains -name "jetbrains-toolbox" -type f 2>/dev/null | head -1)
+        if [ -z "$TOOLBOX_BIN" ]; then
+            echo "Error: jetbrains-toolbox binary not found in ~/.local/share/JetBrains/"
+            exit 1
+        fi
+        exec switcherooctl launch --gpu 1 "$TOOLBOX_BIN" "$@"
+        ;;
+
+    # ------------------------------------------------------------------
+    # Flatpak apps — switcherooctl can't enter Flatpak sandbox
+    # Use PRIME env vars passed into the sandbox instead
+    # ------------------------------------------------------------------
+    gimp)
+        exec flatpak run \
+            --env=__NV_PRIME_RENDER_OFFLOAD=1 \
+            --env=__GLX_VENDOR_LIBRARY_NAME=nvidia \
+            --env=__VK_LAYER_NV_optimus=NVIDIA_only \
+            --env=VK_LOADER_DRIVERS_SELECT='*nvidia*' \
+            org.gimp.GIMP "$@"
+        ;;
+
+    kdenlive)
+        exec flatpak run \
+            --env=__NV_PRIME_RENDER_OFFLOAD=1 \
+            --env=__GLX_VENDOR_LIBRARY_NAME=nvidia \
+            --env=__VK_LAYER_NV_optimus=NVIDIA_only \
+            --env=VK_LOADER_DRIVERS_SELECT='*nvidia*' \
+            org.kde.kdenlive "$@"
+        ;;
+
+    heroic)
+        exec flatpak run \
+            --env=__NV_PRIME_RENDER_OFFLOAD=1 \
+            --env=__GLX_VENDOR_LIBRARY_NAME=nvidia \
+            --env=__VK_LAYER_NV_optimus=NVIDIA_only \
+            --env=VK_LOADER_DRIVERS_SELECT='*nvidia*' \
+            com.heroicgameslauncher.hgl "$@"
+        ;;
+
+    vesktop|discord)
+        exec flatpak run \
+            --env=__NV_PRIME_RENDER_OFFLOAD=1 \
+            --env=__GLX_VENDOR_LIBRARY_NAME=nvidia \
+            --env=__VK_LAYER_NV_optimus=NVIDIA_only \
+            --env=VK_LOADER_DRIVERS_SELECT='*nvidia*' \
+            dev.vencord.Vesktop "$@"
+        ;;
+
+    zen)
+        exec flatpak run \
+            --env=__NV_PRIME_RENDER_OFFLOAD=1 \
+            --env=__GLX_VENDOR_LIBRARY_NAME=nvidia \
+            --env=__VK_LAYER_NV_optimus=NVIDIA_only \
+            --env=VK_LOADER_DRIVERS_SELECT='*nvidia*' \
+            app.zen_browser.zen "$@"
+        ;;
+
+    # ------------------------------------------------------------------
+    # Generic Flatpak passthrough
+    # Usage: gpu-run flatpak <APP_ID>
+    # ------------------------------------------------------------------
+    flatpak)
+        exec flatpak run \
+            --env=__NV_PRIME_RENDER_OFFLOAD=1 \
+            --env=__GLX_VENDOR_LIBRARY_NAME=nvidia \
+            --env=__VK_LAYER_NV_optimus=NVIDIA_only \
+            --env=VK_LOADER_DRIVERS_SELECT='*nvidia*' \
+            "$@"
+        ;;
+
+    # ------------------------------------------------------------------
+    # Fallback — works for most system-installed apps
+    # ------------------------------------------------------------------
+    *)
+        exec switcherooctl launch --gpu 1 "$APP" "$@"
+        ;;
+esac
